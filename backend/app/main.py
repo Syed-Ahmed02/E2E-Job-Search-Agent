@@ -42,7 +42,6 @@ class SearchRequest(BaseModel):
 class LinkedinResult(BaseModel):
     url: str
     title: str
-    job_description: str
 
 class SearchResponse(BaseModel):
     results: List[LinkedinResult]
@@ -58,11 +57,11 @@ async def search_for_jobs(request: SearchRequest):
             query=query,
             num_results=5,
             type="keyword",
-            include_domains=["linkedin.com","indeed.com"]
+            include_domains=["linkedin.com"]
         )
         results = [
-            LinkedinResult(url=result.url, title=result.title, job_description=result.job_description)
-            for result in search.results if "linkedin.com/in/" in result.url or "indeed.com" in result.url
+            LinkedinResult(url=result.url, title=result.title)
+            for result in search.results if "linkedin.com/in/" in result.url 
         ]
         return results[:10]  
     except Exception as e:

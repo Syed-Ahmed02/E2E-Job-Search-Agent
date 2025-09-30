@@ -12,6 +12,7 @@ import {
 import { Menu, MoveRight, X } from "lucide-react";
 import { useState } from "react";
 import Link from "next/link";
+import { SignedIn, SignedOut, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
 
 interface NavigationItem {
     title: string;
@@ -97,9 +98,19 @@ function Header() {
                     <p className="font-semibold">E2E Job Search Agent</p>
                 </div>
                 <div className="flex justify-end w-full gap-4">
+              
+                <SignedOut>
+              <SignInButton >
+              <Button variant="outline">Sign in</Button>    
+              </SignInButton>
+              <SignUpButton>
+              <Button>Get started</Button>                
+              </SignUpButton>
+            </SignedOut>
+            <SignedIn>
+              <UserButton />
+            </SignedIn>
                     
-                    <Button variant="outline">Sign in</Button>
-                    <Button>Get started</Button>
                 </div>
                 <div className="flex w-12 shrink lg:hidden items-end justify-end">
                     <Button variant="ghost" onClick={() => setOpen(!isOpen)}>

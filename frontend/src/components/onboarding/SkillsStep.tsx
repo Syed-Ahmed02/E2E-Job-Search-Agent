@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { getAllSkillsClient } from '@/lib/database/client'
@@ -34,15 +34,22 @@ export function SkillsStep({ onNext, onBack, initialSkills = [] }: SkillsStepPro
   const [selectedSkills, setSelectedSkills] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string>('')
+  const hasInitialized = useRef(false)
 
   useEffect(() => {
     loadSkills()
-    // Initialize selected skills from props
-    const initialSelected = initialSkills.reduce((acc, skill) => {
-      acc[skill.skill_id] = skill.proficiency_level
-      return acc
-    }, {} as Record<string, string>)
-    setSelectedSkills(initialSelected)
+  }, [])
+
+  useEffect(() => {
+    // Initialize selected skills from props only once
+    if (!hasInitialized.current && initialSkills.length > 0) {
+      const initialSelected = initialSkills.reduce((acc, skill) => {
+        acc[skill.skill_id] = skill.proficiency_level
+        return acc
+      }, {} as Record<string, string>)
+      setSelectedSkills(initialSelected)
+      hasInitialized.current = true
+    }
   }, [initialSkills])
 
   const loadSkills = async () => {

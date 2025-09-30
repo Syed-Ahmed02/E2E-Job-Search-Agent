@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { PersonalInfoStep } from './PersonalInfoStep'
+import { ResumeUploadStep } from './ResumeUploadStep'
 import { SkillsStep } from './SkillsStep'
 import { CompletionStep } from './CompletionStep'
 import { updateProfileClient, updateUserSkillsClient, getProfileClient } from '@/lib/database/client'
@@ -27,7 +28,7 @@ export function OnboardingFlow() {
   const [error, setError] = useState<string>('')
   const router = useRouter()
 
-  const totalSteps = 3
+  const totalSteps = 4
 
   const handlePersonalInfoNext = async (data: {
     full_name: string
@@ -55,6 +56,10 @@ export function OnboardingFlow() {
     }
   }
 
+  const handleResumeUploadNext = () => {
+    setCurrentStep(3)
+  }
+
   const handleSkillsNext = async (skills: Array<{
     skill_id: string
     proficiency_level: string
@@ -67,7 +72,7 @@ export function OnboardingFlow() {
       await updateUserSkillsClient(skills)
 
       setOnboardingData(prev => ({ ...prev, skills }))
-      setCurrentStep(3)
+      setCurrentStep(4)
     } catch (err) {
       setError('Failed to save skills. Please try again.')
       console.error('Error saving skills:', err)
@@ -113,13 +118,20 @@ export function OnboardingFlow() {
         )
       case 2:
         return (
+          <ResumeUploadStep
+            onNext={handleResumeUploadNext}
+            onBack={handleBack}
+          />
+        )
+      case 3:
+        return (
           <SkillsStep
             onNext={handleSkillsNext}
             onBack={handleBack}
             initialSkills={onboardingData.skills}
           />
         )
-      case 3:
+      case 4:
         return (
           <CompletionStep
             onComplete={handleComplete}

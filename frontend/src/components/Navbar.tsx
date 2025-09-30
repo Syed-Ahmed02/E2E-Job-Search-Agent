@@ -10,10 +10,9 @@ import {
     NavigationMenuTrigger,
 } from "@/components/ui/navigation-menu";
 import { Menu, MoveRight, X } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { SignedIn, SignedOut, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
-
+import { createClient } from "@/lib/supabase/client";
 interface NavigationItem {
     title: string;
     description: string;
@@ -41,10 +40,32 @@ function Header() {
     ];
 
     const [isOpen, setOpen] = useState(false);
+    const [user, setUser] = useState<any>(null);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const supabase = createClient();
+        
+        const getUser = async () => {
+            try {
+                const { data, error } = await supabase.auth.getUser();
+                if (!error && data?.user) {
+                    setUser(data.user);
+                }
+            } catch (error) {
+                console.error('Error fetching user:', error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        getUser();
+    }, []);
     return (
-        <header className="w-full z-40 fixed top-0 left-0 bg-background">
-            <div className="container relative mx-auto min-h-20 flex gap-4 flex-row lg:grid lg:grid-cols-3 items-center">
-                <div className="justify-start items-center gap-4 lg:flex hidden flex-row">
+        <header className="w-full z-40 fixed top-0 left-0 bg-secondary rounded-b-lg">
+            <div className="container relative mx-auto min-h-20 flex items-center justify-between">
+                {/* Desktop Navigation - Hidden on mobile */}
+                <div className="hidden lg:flex justify-start items-center gap-4 flex-row">
                     <NavigationMenu className="flex justify-start items-start">
                         <NavigationMenuList className="flex justify-start gap-4 flex-row">
                             {navigationItems.map((item) => (
@@ -94,61 +115,85 @@ function Header() {
                         </NavigationMenuList>
                     </NavigationMenu>
                 </div>
-                <div className="flex lg:justify-center">
-                    <p className="font-semibold">E2E Job Search Agent</p>
+
+                {/* Title - Centered on all screen sizes */}
+                <div className="flex justify-center flex-1">
+                    <p className="font-semibold text-center">E2E Job Search Agent</p>
                 </div>
-                <div className="flex justify-end w-full gap-4">
-              
-                <SignedOut>
-              <SignInButton >
-              <Button variant="outline">Sign in</Button>    
-              </SignInButton>
-              <SignUpButton>
-              <Button>Get started</Button>                
-              </SignUpButton>
-            </SignedOut>
-            <SignedIn>
-              <UserButton />
-            </SignedIn>
-                    
+
+                {/* Desktop Auth Buttons - Hidden on mobile */}
+                <div className="hidden lg:flex justify-end gap-4">
+                    {user ? (
+                        <Button variant="outline">Sign out</Button>
+                    ) : (
+                        <>
+                            <Button variant="outline">Sign in</Button>
+                            <Button>Get started</Button>
+                        </>
+                    )}
                 </div>
-                <div className="flex w-12 shrink lg:hidden items-end justify-end">
+
+                {/* Mobile Hamburger Menu - Only visible on mobile */}
+                <div className="flex lg:hidden">
                     <Button variant="ghost" onClick={() => setOpen(!isOpen)}>
                         {isOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
                     </Button>
                     {isOpen && (
-                        <div className="absolute top-20 border-t flex flex-col w-full right-0 bg-background shadow-lg py-4 container gap-8">
-                            {navigationItems.map((item) => (
-                                <div key={item.title}>
-                                    <div className="flex flex-col gap-2">
-                                        {item.href ? (
-                                            <Link
-                                                href={item.href}
-                                                className="flex justify-between items-center"
-                                            >
-                                                <span className="text-lg">{item.title}</span>
-                                                <MoveRight className="w-4 h-4 stroke-1 text-muted-foreground" />
-                                            </Link>
-                                        ) : (
-                                            <p className="text-lg">{item.title}</p>
-                                        )}
-                                        {item.items &&
-                                            item.items.map((subItem) => (
+                        <>
+                            {/* Backdrop overlay with blur */}
+                            <div 
+                                className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[-1]"
+                                onClick={() => setOpen(false)}
+                            />
+                            
+                            {/* Mobile menu */}
+                            <div className="absolute mt-4 top-20 left-0 right-0 border-t flex flex-col w-full shadow-lg py-4 px-4 gap-8 bg-secondary rounded-lg">
+                                {navigationItems.map((item) => (
+                                    <div key={item.title}>
+                                        <div className="flex flex-col gap-2">
+                                            {item.href ? (
                                                 <Link
-                                                    key={subItem.title}
-                                                    href={subItem.href}
+                                                    href={item.href}
                                                     className="flex justify-between items-center"
+                                                    onClick={() => setOpen(false)}
                                                 >
-                                                    <span className="text-muted-foreground">
-                                                        {subItem.title}
-                                                    </span>
-                                                    <MoveRight className="w-4 h-4 stroke-1" />
+                                                    <span className="text-lg">{item.title}</span>
+                                                    <MoveRight className="w-4 h-4 stroke-1 text-muted-foreground" />
                                                 </Link>
-                                            ))}
+                                            ) : (
+                                                <p className="text-lg">{item.title}</p>
+                                            )}
+                                            {item.items &&
+                                                item.items.map((subItem) => (
+                                                    <Link
+                                                        key={subItem.title}
+                                                        href={subItem.href}
+                                                        className="flex justify-between items-center"
+                                                        onClick={() => setOpen(false)}
+                                                    >
+                                                        <span className="text-muted-foreground">
+                                                            {subItem.title}
+                                                        </span>
+                                                        <MoveRight className="w-4 h-4 stroke-1" />
+                                                    </Link>
+                                                ))}
+                                        </div>
                                     </div>
+                                ))}
+                                
+                                {/* Mobile auth buttons */}
+                                <div className="flex flex-col gap-4 pt-4 border-t">
+                                    {user ? (
+                                        <Button variant="outline" className="w-full">Sign out</Button>
+                                    ) : (
+                                        <>
+                                            <Button variant="outline" className="w-full">Sign in</Button>
+                                            <Button className="w-full">Get started</Button>
+                                        </>
+                                    )}
                                 </div>
-                            ))}
-                        </div>
+                            </div>
+                        </>
                     )}
                 </div>
             </div>

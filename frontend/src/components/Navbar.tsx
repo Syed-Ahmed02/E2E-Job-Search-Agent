@@ -13,6 +13,7 @@ import { Menu, MoveRight, X } from "lucide-react";
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { redirect } from "next/navigation";
 interface NavigationItem {
     title: string;
     description: string;
@@ -42,7 +43,12 @@ function Header() {
     const [isOpen, setOpen] = useState(false);
     const [user, setUser] = useState<any>(null);
     const [loading, setLoading] = useState(true);
-
+    const logout = async () => {
+        const supabase = createClient();
+        await supabase.auth.signOut();
+        setUser(null);
+        redirect('/')
+    }
     useEffect(() => {
         const supabase = createClient();
         
@@ -124,11 +130,11 @@ function Header() {
                 {/* Desktop Auth Buttons - Hidden on mobile */}
                 <div className="hidden lg:flex justify-end gap-4">
                     {user ? (
-                        <Button variant="outline">Sign out</Button>
+                        <Button variant="outline" onClick={logout}>Sign out</Button>
                     ) : (
                         <>
-                            <Button variant="outline">Sign in</Button>
-                            <Button>Get started</Button>
+                            <Button variant="outline"><Link href="/auth/login">Sign in</Link></Button>
+                            <Button><Link href="/auth/sign-up">Get started</Link></Button>
                         </>
                     )}
                 </div>
@@ -184,11 +190,11 @@ function Header() {
                                 {/* Mobile auth buttons */}
                                 <div className="flex flex-col gap-4 pt-4 border-t">
                                     {user ? (
-                                        <Button variant="outline" className="w-full">Sign out</Button>
+                                        <Button variant="outline" className="w-full" onClick={logout}>Sign out</Button>
                                     ) : (
                                         <>
-                                            <Button variant="outline" className="w-full">Sign in</Button>
-                                            <Button className="w-full">Get started</Button>
+                                            <Button variant="outline" className="w-full"><Link href="/auth/login">Sign in</Link></Button>
+                                            <Button className="w-full"><Link href="/auth/sign-up">Get started</Link></Button>
                                         </>
                                     )}
                                 </div>

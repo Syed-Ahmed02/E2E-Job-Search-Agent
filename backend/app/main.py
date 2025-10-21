@@ -8,7 +8,6 @@ from typing import List, Optional
 from openai import OpenAI
 from exa_py import Exa
 
-load_dotenv()
 
 # EXA_API_KEY = os.getenv("EXA_API_KEY")
 # OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")

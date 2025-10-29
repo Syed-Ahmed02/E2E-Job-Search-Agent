@@ -172,3 +172,26 @@ export async function createResume(resumeData: {
 
   return data
 }
+
+export async function getAllResumesWithProfiles() {
+  const supabase = await createClient()
+  
+  const { data, error } = await supabase
+    .from('resumes')
+    .select(`
+      *,
+      profiles (
+        id,
+        full_name,
+        email,
+        linkedin_url
+      )
+    `)
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    throw new Error(`Failed to fetch resumes: ${error.message}`)
+  }
+
+  return data
+}

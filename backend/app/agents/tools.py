@@ -1,45 +1,77 @@
 from langchain.tools import tool
 from langchain_exa import ExaSearchRetriever
+from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_chroma import Chroma
 import os
 from dotenv import load_dotenv
-from langchain_community.document_loaders import UnstructuredHTMLLoader
-from langchain_community.document_loaders import S3FileLoader
 from typing import Annotated
+import chromadb
+import requests
+
 load_dotenv()
 
-# EXA Search Retriever
-retriever = ExaSearchRetriever(api_key=os.getenv("EXA_API_KEY"), k=3, highlights=True)
+EXA_API_KEY = os.getenv("EXA_API_KEY")
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+GOOGLE_CSE_ID = os.getenv("GOOGLE_CSE_ID") 
+CHROME_API_KEY = os.getenv("CHROME_API_KEY")
+CHROMA_API_KEY = os.getenv("CHROMA_API_KEY")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
+exa_retriever = ExaSearchRetriever(api_key=EXA_API_KEY, k=3, highlights=True)
+client = chromadb.CloudClient(
+  api_key=CHROMA_API_KEY,
+  tenant='361f16d2-3a10-4479-854c-519de88ae973',
+  database='job_search_db'
+)
+embeddings = HuggingFaceEmbeddings(
+            model_name="sentence-transformers/all-MiniLM-L6-v2",
+            model_kwargs={'device': 'cpu'}
+        )
+vector_store = Chroma(
+    client=client,
+    collection_name="skills_jobs",
+    embedding_function=embeddings
+)
+chroma_retriever = vector_store.as_retriever(search_type="similarity", search_kwargs={"k":5})
 @tool
 def exa_search(query: Annotated[str, "The query to execute to find key summary information."]):
     """Use Exa Search to find key summary information"""
-    results = retriever.get_relevant_documents(query)
+    results = exa_retriever.get_relevant_documents(query)
     return results
 
 @tool
-def website_scraper(url: Annotated[str, "The URL of the website to scrape"]):
-    """Scrape a website for job postings and return the results in structured format"""
-    # Website Scrappers
-    
-    # Returned Results in HTML
-    loader = UnstructuredHTMLLoader(url)
-    docs = loader.load()
-    return docs
+def google_search(query: Annotated[str, "The boolean search query to execute to find key summary information."]):
+    """Given a google boolean search query, return the top 10 results
 
+    
+    """
+    params = {
+        "key": GOOGLE_API_KEY,
+        "cx": GOOGLE_CSE_ID,
+        "q": query,
+        # Optional: restrict to last month -> d = days, w = weeks, m = months, y = years
+        "num": 10,             # 1..10 per page
+        "safe": "off",
+        "lr": "lang_en",       # optional language
+    }
+    resp = requests.get("https://www.googleapis.com/customsearch/v1", params=params, timeout=20)
+    resp.raise_for_status()
+    data = resp.json()  
+    
+    results = [
+    {
+        "title": item.get("title"),
+        "link": item.get("link"),
+        "snippet": item.get("snippet"),
+        "displayLink": item.get("displayLink"),
+    }
+        for item in data.get("items", [])
+    ]
+    
+    return results
 
 @tool
-def retrieve_existing_jobs(query: Annotated[str, "The query to find existing jobs"]):
-    """Retrieve existing jobs from the database"""
-    # Database Query
-    #todo: Edit this to use the correct database table and columns
-    response = supabase.table("jobs").select("id, position_name, company, location, job_description").eq("query", query).execute()
-    return response.data
-
-@tool 
-def retrieve_existing_resumes(user_id: Annotated[str, "The user ID of the resume to retrieve"]):
-    """Retrieve existing resumes from the database"""
-    # Database Query
-    #todo: Edit this to use the correct database table and columns
-    response = supabase.table("resumes").select("url").eq("user_id", user_id).execute()
-    loader = S3FileLoader(response.data[0]['url'])
-    docs = loader.load()
-    return docs
+def match_jobs(query:Annotated[str,"The skills and job title the user wants to search for"]):
+    """retrieve relevant jobs to help the user query"""
+    results = chroma_retriever.get_relevant_documents(query)
+    return results

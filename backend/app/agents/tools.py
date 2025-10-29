@@ -1,4 +1,4 @@
-from langchain_core.tools import tool
+from langchain.tools import tool
 from langchain_exa import ExaSearchRetriever
 import os
 from dotenv import load_dotenv

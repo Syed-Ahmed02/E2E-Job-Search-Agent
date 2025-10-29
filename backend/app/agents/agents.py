@@ -8,9 +8,8 @@ from langchain_core.runnables import RunnablePassthrough, RunnableParallel
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from langchain_core.output_parsers import StrOutputParser
-from langchain_core.agents import create_react_agent
+from langchain_core.agents import create_agent
 from app.agents.tools import exa_search, website_scraper, retrieve_existing_jobs, retrieve_existing_resumes
-from langgraph_supervisor import create_supervisor
 from langgraph.checkpoint.memory import InMemorySaver
 # Define our retriever to use Exa Search, grabbing 3 results and parsing highlights from each result
 load_dotenv()
@@ -19,7 +18,7 @@ retriever = ExaSearchRetriever(api_key=os.getenv("EXA_API_KEY"), k=3, highlights
 
 llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.0, api_key=os.getenv("OPENAI_API_KEY"))
 
-research_agent = create_react_agent(
+research_agent = create_agent(
     llm=llm,
     tools=[exa_search,website_scraper],
     prompt=(
@@ -31,7 +30,7 @@ research_agent = create_react_agent(
     name="reseracher"
 )
 
-tailor_agent = create_react_agent(
+tailor_agent = create_agent(
     llm=llm,
     tools=[retrieve_existing_jobs, retrieve_existing_resumes],
     prompt=(
@@ -43,7 +42,7 @@ tailor_agent = create_react_agent(
     name="tailor"
 )
 
-job_matching_agent = create_react_agent(
+job_matching_agent = create_agent(
     llm=llm,
     tools=[retrieve_existing_jobs, website_scraper],
     prompt=(
@@ -58,7 +57,13 @@ job_matching_agent = create_react_agent(
 config = {"configurable": {"thread_id": "1", "user_id": "1"}}
 checkpointer = InMemorySaver()
 
-supervisor = create_supervisor(
+#
+@tool 
+def match_jobs():
+    """Match jobs to the user's resume"""
+
+
+supervisor = create_agent(
     agents=[research_agent, tailor_agent, job_matching_agent],
     llm=llm,
     prompt=(

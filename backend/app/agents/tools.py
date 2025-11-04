@@ -7,7 +7,9 @@ from dotenv import load_dotenv
 from typing import Annotated
 import chromadb
 import requests
-
+import time
+from threading import Lock
+from collections import deque
 load_dotenv()
 
 EXA_API_KEY = os.getenv("EXA_API_KEY")
@@ -33,11 +35,46 @@ vector_store = Chroma(
     embedding_function=embeddings
 )
 chroma_retriever = vector_store.as_retriever(search_type="similarity", search_kwargs={"k":5})
+# Rate limiter class
+class ExaRateLimiter:
+    def __init__(self, max_requests: int = 5, time_window: float = 1.0):
+        self.max_requests = max_requests
+        self.time_window = time_window
+        self.request_times = deque()
+        self.lock = Lock()
+    
+    def acquire(self):
+        """Wait if necessary to stay within rate limit"""
+        with self.lock:
+            now = time.time()
+            # Remove requests older than the time window
+            while self.request_times and self.request_times[0] < now - self.time_window:
+                self.request_times.popleft()
+            
+            # If we're at the limit, wait until we can make another request
+            if len(self.request_times) >= self.max_requests:
+                sleep_time = self.request_times[0] + self.time_window - now
+                if sleep_time > 0:
+                    time.sleep(sleep_time)
+                    now = time.time()
+                    while self.request_times and self.request_times[0] < now - self.time_window:
+                        self.request_times.popleft()
+            
+            # Record this request time
+            self.request_times.append(now)
+
+# Create rate limiter instance
+exa_rate_limiter = ExaRateLimiter(max_requests=5, time_window=1.0)
+
+# Then modify your exa_search tool:
 @tool
 def exa_search(query: Annotated[str, "The query to execute to find key summary information."]):
     """Use Exa Search to find key summary information"""
-    results = exa_retriever.get_relevant_documents(query)
+    exa_rate_limiter.acquire()  # Rate limit before API call
+    results = exa_retriever.invoke(query)
     return results
+
+
 
 @tool
 def google_search(query: Annotated[str, "The boolean search query to execute to find key summary information."]):
@@ -73,5 +110,7 @@ def google_search(query: Annotated[str, "The boolean search query to execute to 
 @tool
 def match_jobs(query:Annotated[str,"The skills and job title the user wants to search for"]):
     """retrieve relevant jobs to help the user query"""
-    results = chroma_retriever.get_relevant_documents(query)
+    results = chroma_retriever.invoke(query)
     return results
+
+

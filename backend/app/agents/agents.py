@@ -1,9 +1,9 @@
-from langchian.agents  import create_agent
+from langchain.agents  import create_agent
 from langchain_openai import ChatOpenAI
 import os
 from dotenv import load_dotenv
 load_dotenv()
-from tools import exa_search, google_search, match_jobs
+from app.agents.tools import exa_search, google_search, match_jobs
 from langchain.tools import tool
 
 model = ChatOpenAI(

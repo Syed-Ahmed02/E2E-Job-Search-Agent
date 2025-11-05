@@ -13,15 +13,16 @@ from app.agents.tools import exa_search, google_search, match_jobs
 from langchain.tools import tool
 from langchain.messages import AIMessage
 from langgraph.checkpoint.memory import InMemorySaver
-from langgraph.graph import StateGraph
+from langgraph.graph import StateGraph, END
 from langgraph.graph.message import add_messages
-from langgraph.graph.ui import AnyUIMessage, push_ui_message, ui_message_reducer  
+from langgraph.graph.ui import AnyUIMessage, push_ui_message, ui_message_reducer
+from langchain_core.messages.utils import trim_messages, count_tokens_approximately  
 
 
 model = ChatOpenAI(
     api_key=os.getenv("OPENROUTER_API_KEY"),
     base_url="https://openrouter.ai/api/v1",
-    model="openai/gpt-5-nano",
+    model="x-ai/grok-4-fast",
     temperature=0.1
 )
 
@@ -50,6 +51,13 @@ Research companies using precise search queries. Focus on:
 - Recent news and developments
 - Culture, values, mission
 
+## Stopping Conditions
+**CRITICAL**: Stop and return results when:
+- You have gathered sufficient information about the company (2-3 tool calls maximum)
+- You have enough information to provide a comprehensive overview
+- DO NOT make more than 3 tool calls total
+- After gathering information, immediately format and return the response
+
 ## Output
 Provide structured markdown with:
 - Company overview
@@ -69,6 +77,13 @@ Analyze job descriptions and provide resume optimization recommendations:
 - Extract key requirements and keywords
 - Match user skills/experience to job needs
 - Suggest specific improvements
+
+## Stopping Conditions
+**CRITICAL**: Stop and return results when:
+- You have retrieved the job posting(s) needed (1-2 tool calls maximum)
+- You have enough information to provide tailoring recommendations
+- DO NOT make more than 2 tool calls total
+- After retrieving job information, immediately analyze and return recommendations
 
 ## Output
 Provide markdown with:
@@ -91,12 +106,18 @@ Job matching agent finding relevant opportunities for users.
 ## Tools
 - `match_jobs`: Search internal database for job postings
 - `google_search`: Search web for additional opportunities
+- `exa_search`: Search company information, news, and updates
 
 ## Task
 Find matching jobs using user skills and preferences. Use both internal (match_jobs) and external (google_search) sources.
+Use exa search to find which website that company uses for job postings, and then search that website for job postings using the google search tool.
 Rate each job match 0-5 (5 = high match).
 
 ## Search Strategy
+Exa Search: Use this when the user wants to search for a specific company, find which website that company uses for job postings, 
+and then search that website for job postings using the google search tool.
+Example: "Search for jobs at Google" should first use exa search to find which website Google uses for job postings, and since it uses "https://www.google.com/about/careers/applications/jobs/" it should then search that website for job postings using the google search tool. 
+
 Google searches:
 - Use quotes: `"software engineer"`
 - Boolean: `("python" OR "java") AND "developer"`
@@ -119,11 +140,25 @@ apply.jazz.co, careers.workable.com
   }}
 ]Include brief reasoning for match_rating after the JSON.
 
+## Stopping Conditions
+**CRITICAL**: Stop and return results when:
+- You have found 5-10 relevant job postings
+- You have completed your search strategy (exa search → google search pattern)
+- You have gathered sufficient information to rate and format jobs
+- DO NOT call tools repeatedly if you already have enough results
+- DO NOT make more than 5 tool calls total
+- After calling tools and getting results, immediately format and return the JSON response
+
 ## Rules
 - Prioritize recent postings
 - Consider transferable skills
 - Explain match reasoning
-- Always return valid JSON matching JobData schema"""
+- Always return valid JSON matching JobData schema
+- If the user asks to search for jobs at a specific company, use exa search to find which website that company uses for job postings, 
+and then search that website for job postings using the google search tool.
+- Always call one tool at a time
+- **STOP after 5 tool calls maximum** - format and return results immediately
+"""
 
 SUPERVISOR_PROMPT = """## Role
 Supervisor agent coordinating specialized agents for job search tasks.
@@ -163,11 +198,22 @@ Route by intent:
 - "Research Google" → `research`
 - "Tailor my resume for job X" → `tailor`
 
+## Stopping Conditions
+**CRITICAL**: Stop and return final response when:
+- The delegated agent has completed its task and returned results
+- You have sufficient information to answer the user's query
+- DO NOT delegate to the same agent repeatedly
+- DO NOT call tools more than 5 times total
+- After receiving results from an agent, synthesize and return the final answer immediately
+
 ## Rules
 - Always clarify vague queries before delegating
 - Provide clear context to each agent (include user skills and target role)
 - Synthesize final results
-- Be conversational and helpful"""
+- Be conversational and helpful
+- Always use only one agent at a time
+- **STOP after receiving results from agents** - do not continue tool calling unnecessarily
+"""
 
 
 
@@ -175,22 +221,22 @@ research_agent = create_agent(
     model,
     tools=[exa_search],
     system_prompt=RESEARCHER_PROMPT,
-    name="reseracher"
+    name="reseracher",
 )
 
 tailor_agent = create_agent(
     model,
     tools=[match_jobs],
     system_prompt=TAILOR_PROMPT,
-    name="tailor"
+    name="tailor",
 )
 
 job_matching_agent = create_agent(
     model,
-    tools=[match_jobs, google_search],
+    tools=[match_jobs, google_search,exa_search],
     system_prompt=JOB_MATCHING_PROMPT.format(user_context="No user context available"),
     response_format=ToolStrategy(JobsList),
-    name="job_matcher"
+    name="job_matcher",
 )
 
 @tool
@@ -269,95 +315,166 @@ def match_jobs(request: str) -> str:
     return result["messages"][-1].text
 
 
-# Create base supervisor agent
+# Create base supervisor agent - this will stream tool calls properly
 _base_supervisor_agent = create_agent(
     model,
     tools=[research, tailor, match_jobs],
     system_prompt=SUPERVISOR_PROMPT.format(user_context="No user context available"),
 )
 
-# Define state with UI support
+# Define state with UI support for the wrapper graph
 class AgentState(TypedDict):
     messages: Annotated[Sequence[AIMessage], add_messages]
     ui: Annotated[Sequence[AnyUIMessage], ui_message_reducer]
 
-async def supervisor_node(state: AgentState):
-    """Supervisor node that processes messages and adds UI for jobs"""
-    # Invoke the base supervisor agent
-    result = await _base_supervisor_agent.ainvoke(state)
+async def add_ui_messages_node(state: AgentState):
+    """Post-processing node that adds UI messages for jobs without blocking streaming"""
+    # Get all messages to find the last AI message and any tool messages
+    messages = state.get("messages", [])
+    if not messages:
+        return state
     
-    # Get the last message
-    last_message = result["messages"][-1]
+    last_message = messages[-1]
+    jobs = []
     
     # Check if this is a response from match_jobs tool call
-    # Look for job data in the message content
-    if isinstance(last_message, AIMessage):
+    # First, try to find jobs in tool messages from match_jobs
+    for msg in reversed(messages):
+        if hasattr(msg, 'name') and msg.name == "match_jobs":
+            # Extract jobs from tool result
+            if hasattr(msg, 'content'):
+                content = msg.content
+                # Handle both string and list content types
+                if isinstance(content, list):
+                    content = " ".join(str(item) for item in content)
+                elif not isinstance(content, str):
+                    content = str(content)
+                jobs = extract_jobs_from_response(content)
+                if jobs:
+                    # Associate UI message with the last AI message that uses this tool result
+                    break
+    
+    # If not found in tool messages, try to extract from the last AI message
+    if not jobs and isinstance(last_message, AIMessage):
         message_text = last_message.content
-        jobs = []
-        
-        # Check if there's a structured_response in the result (from ToolStrategy)
-        if "structured_response" in result:
-            structured_response = result["structured_response"]
-            if isinstance(structured_response, JobsList):
-                jobs = [job.dict() if hasattr(job, 'dict') else job for job in structured_response.jobs]
-            elif isinstance(structured_response, dict) and 'jobs' in structured_response:
-                jobs_list = structured_response['jobs']
-                jobs = [job.dict() if hasattr(job, 'dict') else job for job in jobs_list]
-            elif isinstance(structured_response, list):
-                jobs = [job.dict() if hasattr(job, 'dict') else job for job in structured_response]
-        
-        # Check tool calls for structured output from job_matching_agent
-        if not jobs and hasattr(last_message, 'tool_calls') and last_message.tool_calls:
-            # Look for match_jobs tool call
-            for tool_call in last_message.tool_calls:
-                if tool_call.get('name') == 'match_jobs':
-                    # The tool returns text, but we need to check if job_matching_agent was invoked
-                    # and extract from its response. Since match_jobs tool just returns text,
-                    # we'll extract from the message content or tool response
-                    pass
-        
-        # Check if message has response_metadata with structured output (ProviderStrategy)
-        if not jobs and hasattr(last_message, 'response_metadata') and last_message.response_metadata:
-            structured_output = last_message.response_metadata.get('structured_output')
-            if structured_output:
-                # Handle JobsList structured output
-                if isinstance(structured_output, JobsList):
-                    jobs = [job.dict() if hasattr(job, 'dict') else job for job in structured_output.jobs]
-                elif isinstance(structured_output, dict) and 'jobs' in structured_output:
-                    jobs = [job.dict() if hasattr(job, 'dict') else job for job in structured_output['jobs']]
-                elif isinstance(structured_output, list):
-                    jobs = [job.dict() if hasattr(job, 'dict') else job for job in structured_output]
-        
-        # If no structured output, try to extract from text
-        if not jobs:
-            jobs = extract_jobs_from_response(message_text)
-        
-        # If jobs were found, push UI message
+        # Handle both string and list content types
+        if isinstance(message_text, list):
+            message_text = " ".join(str(item) for item in message_text)
+        elif not isinstance(message_text, str):
+            message_text = str(message_text)
+        jobs = extract_jobs_from_response(message_text)
+    
+    # If jobs were found, push UI message with proper message association
+    if jobs and isinstance(last_message, AIMessage):
+        # push_ui_message automatically sets metadata when message is provided
+        # The message parameter ensures the UI message is associated with the AI message
+        push_ui_message(
+            "jobs_table",
+            {"jobs": jobs},
+            message=last_message
+        )
+    
+    # Return state unchanged (UI messages are added via push_ui_message)
+    return state
+
+def should_add_ui(state: AgentState) -> str:
+    """Conditional function to determine if we should add UI messages"""
+    messages = state.get("messages", [])
+    if not messages:
+        return "end"
+    
+    last_message = messages[-1]
+    jobs = []
+    
+    # Check tool messages first (they contain the actual job data)
+    for msg in reversed(messages):
+        if hasattr(msg, 'name') and msg.name == "match_jobs":
+            if hasattr(msg, 'content'):
+                content = msg.content
+                # Handle both string and list content types
+                if isinstance(content, list):
+                    content = " ".join(str(item) for item in content)
+                elif not isinstance(content, str):
+                    content = str(content)
+                jobs = extract_jobs_from_response(content)
+                if jobs:
+                    return "add_ui"
+    
+    # Also check the last AI message
+    if isinstance(last_message, AIMessage):
+        content = last_message.content
+        # Handle both string and list content types
+        if isinstance(content, list):
+            content = " ".join(str(item) for item in content)
+        elif not isinstance(content, str):
+            content = str(content)
+        jobs = extract_jobs_from_response(content)
         if jobs:
-            # Use existing message ID or create new one
-            message_id = last_message.id if hasattr(last_message, 'id') and last_message.id else str(uuid.uuid4())
-            
-            # Create AI message with ID
-            ai_message = AIMessage(
-                id=message_id,
-                content=message_text,
-            )
-            
-            # Push UI message with jobs
-            push_ui_message(
-                "jobs_table",
-                {"jobs": jobs},
-                message=ai_message
-            )
-            
-            return {"messages": [ai_message]}
+            return "add_ui"
+    
+    return "end"
+
+# Create a wrapper graph that uses the base agent and adds UI support
+# This allows streaming while still supporting UI messages
+workflow = StateGraph(AgentState)
+
+def supervisor_node(state: AgentState):
+    """Wrapper node that trims messages before calling supervisor to prevent context length errors"""
+    messages = state.get("messages", [])
+    
+    # Trim messages if they exist to stay well under the 128k token limit
+    # Keep 100k tokens to leave room for response and function calls
+    if messages:
+        trimmed_messages = trim_messages(
+            messages,
+            strategy="last",
+            token_counter=count_tokens_approximately,
+            max_tokens=100000,  # Leave 28k tokens for response and overhead
+            start_on="human",
+            end_on=("human", "tool"),
+        )
+        # Create trimmed state preserving UI
+        trimmed_state = {
+            "messages": trimmed_messages,
+            "ui": state.get("ui", [])
+        }
+    else:
+        trimmed_state = state
+    
+    # Call the supervisor agent with trimmed messages and recursion limit config
+    config = {"recursion_limit": 25}  # Set explicit recursion limit
+    result = _base_supervisor_agent.invoke(trimmed_state, config=config)
+    
+    # Preserve UI state in result
+    if "ui" in state:
+        result["ui"] = state["ui"]
     
     return result
 
-# Create the graph with UI support
-workflow = StateGraph(AgentState)
+# Add the supervisor node with trimming - this will stream tool calls
 workflow.add_node("supervisor", supervisor_node)
+
+# Add UI message node
+workflow.add_node("add_ui", add_ui_messages_node)
+
+# Set entry point
 workflow.set_entry_point("supervisor")
 
-supervisor_agent = workflow.compile()
+# Add conditional edge: after supervisor, check if we need UI messages
+workflow.add_conditional_edges(
+    "supervisor",
+    should_add_ui,
+    {
+        "add_ui": "add_ui",
+        "end": END
+    }
+)
+
+# After adding UI, end
+workflow.add_edge("add_ui", END)
+
+# Compile with recursion limit and checkpoint for state management
+supervisor_agent = workflow.compile(
+   
+)
 

@@ -19,7 +19,7 @@ CHROME_API_KEY = os.getenv("CHROME_API_KEY")
 CHROMA_API_KEY = os.getenv("CHROMA_API_KEY")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-exa_retriever = ExaSearchRetriever(api_key=EXA_API_KEY, k=3, highlights=True)
+exa_retriever = ExaSearchRetriever(api_key=EXA_API_KEY, k=1, highlights=True)
 client = chromadb.CloudClient(
   api_key=CHROMA_API_KEY,
   tenant='361f16d2-3a10-4479-854c-519de88ae973',
@@ -34,7 +34,7 @@ vector_store = Chroma(
     collection_name="skills_jobs",
     embedding_function=embeddings
 )
-chroma_retriever = vector_store.as_retriever(search_type="similarity", search_kwargs={"k":5})
+chroma_retriever = vector_store.as_retriever(search_type="similarity", search_kwargs={"k":1})
 # Rate limiter class
 class ExaRateLimiter:
     def __init__(self, max_requests: int = 5, time_window: float = 1.0):
@@ -47,7 +47,6 @@ class ExaRateLimiter:
         """Wait if necessary to stay within rate limit"""
         with self.lock:
             now = time.time()
-            # Remove requests older than the time window
             while self.request_times and self.request_times[0] < now - self.time_window:
                 self.request_times.popleft()
             

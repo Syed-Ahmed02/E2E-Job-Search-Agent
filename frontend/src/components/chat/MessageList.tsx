@@ -1,24 +1,40 @@
 "use client";
 
 import type { Message } from "@langchain/langgraph-sdk";
+import { LoadExternalComponent } from "@langchain/langgraph-sdk/react-ui";
 import { ToolCall } from "./ToolCall";
 import { ToolOutput } from "./ToolOutput";
 import { MarkdownContent } from "./MarkdownContent";
 import { ThinkingIndicator } from "./ThinkingIndicator";
+import { JobsTable } from "./JobsTable";
 import { User, Bot } from "lucide-react";
 
 interface MessageListProps {
   messages: Message[];
   isLoading?: boolean;
+  uiMessages?: Array<{
+    id: string;
+    name: string;
+    props: Record<string, unknown>;
+    metadata?: {
+      message_id?: string;
+    };
+  }>;
+  thread?: any;
 }
 
-export function MessageList({ messages, isLoading = false }: MessageListProps) {
+export function MessageList({ messages, isLoading = false, uiMessages = [], thread }: MessageListProps) {
   return (
     <div className="flex flex-col gap-4 p-4 overflow-y-auto">
       {messages.map((message) => {
         const isHuman = message.type === "human";
         const isAI = message.type === "ai";
         const isTool = message.type === "tool";
+
+        // Find UI messages associated with this message
+        const associatedUIMessages = uiMessages.filter(
+          (ui) => ui.metadata?.message_id === message.id
+        );
 
         return (
           <div
@@ -55,6 +71,31 @@ export function MessageList({ messages, isLoading = false }: MessageListProps) {
                   toolName={message.name || "Unknown"}
                   content={message.content}
                 />
+              )}
+
+              {/* Render UI components associated with this message */}
+              {thread && associatedUIMessages.length > 0 && (
+                <div className="flex flex-col gap-2 mt-2 w-full">
+                  {associatedUIMessages.map((ui) => {
+                    // Use client-side component if available
+                    const clientComponents: Record<string, React.ComponentType<any>> = {
+                      jobs_table: JobsTable,
+                    }
+                    
+                    return (
+                      <LoadExternalComponent
+                        key={ui.id}
+                        stream={thread}
+                        message={{
+                          ...ui,
+                          type: "ui" as const,
+                        }}
+                        components={clientComponents}
+                        fallback={<div className="text-sm text-muted-foreground">Loading jobs table...</div>}
+                      />
+                    )
+                  })}
+                </div>
               )}
 
               {/* Render tool calls for AI messages */}

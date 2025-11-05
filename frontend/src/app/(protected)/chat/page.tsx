@@ -8,6 +8,14 @@ import { useEffect, useRef } from "react";
 
 interface AgentState extends Record<string, unknown> {
   messages: Message[];
+  ui?: Array<{
+    id: string;
+    name: string;
+    props: Record<string, unknown>;
+    metadata?: {
+      message_id?: string;
+    };
+  }>;
 }
 
 export default function ChatPage() {
@@ -48,7 +56,12 @@ export default function ChatPage() {
               </div>
             </div>
           ) : (
-            <MessageList messages={thread.messages} isLoading={thread.isLoading} />
+            <MessageList 
+              messages={thread.messages} 
+              isLoading={thread.isLoading}
+              uiMessages={thread.values?.ui as AgentState["ui"]}
+              thread={thread}
+            />
           )}
           <div ref={messagesEndRef} />
         </div>

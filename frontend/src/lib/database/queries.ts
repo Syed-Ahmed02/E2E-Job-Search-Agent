@@ -195,3 +195,20 @@ export async function getAllResumesWithProfiles() {
 
   return data
 }
+
+// Job-related queries
+export async function getUserJobs(userId: string) {
+  const supabase = await createClient()
+  
+  const { data, error } = await supabase
+    .from('user_jobs')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    throw new Error(`Failed to fetch user jobs: ${error.message}`)
+  }
+
+  return data
+}

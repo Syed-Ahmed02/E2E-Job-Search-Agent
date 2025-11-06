@@ -34,7 +34,7 @@ export default async function ResumesPage() {
             View and manage all uploaded resumes
           </p>
         </div>
-        <Button asChild>
+        <Button >
           <Link href="/onboarding">
             <Plus className="h-4 w-4 mr-2" />
             Upload Resume
@@ -60,7 +60,7 @@ export default async function ResumesPage() {
           <p className="text-muted-foreground mb-6">
             Upload your first resume to get started with job matching
           </p>
-          <Button asChild>
+          <Button>
             <Link href="/onboarding">
               <Plus className="h-4 w-4 mr-2" />
               Upload Resume

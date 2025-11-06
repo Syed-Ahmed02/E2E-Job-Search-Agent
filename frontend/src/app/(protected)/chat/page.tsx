@@ -4,7 +4,8 @@ import { useStream } from "@langchain/langgraph-sdk/react";
 import type { Message } from "@langchain/langgraph-sdk";
 import { MessageList } from "@/components/chat/MessageList";
 import { ChatInput } from "@/components/chat/ChatInput";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 
 interface AgentState extends Record<string, unknown> {
   messages: Message[];
@@ -20,9 +21,28 @@ interface AgentState extends Record<string, unknown> {
 
 export default function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+
+  // Get user ID from Supabase auth
+  // Note: user_id will be injected into config by API route
+  useEffect(() => {
+    const supabase = createClient();
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setUserId(user.id);
+      }
+    };
+    getUser();
+  }, []);
+
+  // Construct absolute URL for API route (synchronously for useStream)
+  const apiUrl = typeof window !== "undefined" 
+    ? `${window.location.origin}/api`
+    : process.env.NEXT_PUBLIC_API_URL || "http://localhost:2024";
 
   const thread = useStream<AgentState>({
-    apiUrl: "http://localhost:2024",
+    apiUrl: apiUrl, // Use Next.js API route to inject user_id
     assistantId: "agent",
     messagesKey: "messages",
   });
@@ -33,6 +53,7 @@ export default function ChatPage() {
   }, [thread.messages, thread.isLoading]);
 
   const handleSubmit = (message: string) => {
+    // user_id is automatically injected by API route from session
     thread.submit({
       messages: [{ type: "human", content: message }],
     });

@@ -1,12 +1,10 @@
 import { redirect } from 'next/navigation'
 
-import { LogoutButton } from '@/components/auth/logout-button'
 import { createClient } from '@/lib/supabase/server'
-import { getProfile } from '@/lib/database/queries'
-import { ChatInputDemo } from '@/components/ChatInput'
+import { getProfile, getUserJobs } from '@/lib/database/queries'
 import { DataTable } from './data-table'
 import { columns } from './columns'
-import { sampleJobListings } from './sample-data'
+import { JobListing } from './types'
 
 export default async function ProtectedPage() {
   const supabase = await createClient()
@@ -19,7 +17,16 @@ export default async function ProtectedPage() {
   const userId = data.claims.sub
 
   const profile = await getProfile(userId)
-  console.log(profile)
+  const jobs = await getUserJobs(userId)
+
+  // Map database jobs to JobListing format
+  const jobListings: JobListing[] = jobs.map((job) => ({
+    title: job.job_title,
+    company: job.company,
+    snippit: job.location || '', // Use location as snippet since it's not in DB
+    rating: job.match_rating ? job.match_rating / 5 : 0, // Convert 0-5 scale to 0-1 scale
+    link: job.link,
+  }))
 
   return (
     <div className="container mx-auto py-10">
@@ -30,7 +37,7 @@ export default async function ProtectedPage() {
         </h2>
       </div>
       
-      <DataTable columns={columns} data={sampleJobListings} />
+      <DataTable columns={columns} data={jobListings} />
       
       
     </div>

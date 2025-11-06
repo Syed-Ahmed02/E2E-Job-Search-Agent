@@ -7,16 +7,18 @@ from pydantic import BaseModel
 import json
 import re
 import uuid
-from typing import Annotated, Sequence, TypedDict, List
+import asyncio
+from typing import Annotated, Sequence, TypedDict, List, Optional
+from langchain_core.runnables import RunnableConfig
 load_dotenv()
 from app.agents.tools import exa_search, google_search, match_jobs
 from langchain.tools import tool
-from langchain.messages import AIMessage
-from langgraph.checkpoint.memory import InMemorySaver
+from langchain.messages import AIMessage, HumanMessage
 from langgraph.graph import StateGraph, END
 from langgraph.graph.message import add_messages
 from langgraph.graph.ui import AnyUIMessage, push_ui_message, ui_message_reducer
-from langchain_core.messages.utils import trim_messages, count_tokens_approximately  
+from langchain_core.messages.utils import trim_messages, count_tokens_approximately
+from app.services.database import format_user_context, save_chat_message, save_user_job  
 
 
 model = ChatOpenAI(
@@ -217,47 +219,87 @@ Route by intent:
 
 
 
-research_agent = create_agent(
-    model,
-    tools=[exa_search],
-    system_prompt=RESEARCHER_PROMPT,
-    name="reseracher",
-)
+def create_research_agent():
+    """Create research agent (no user context needed)"""
+    return create_agent(
+        model,
+        tools=[exa_search],
+        system_prompt=RESEARCHER_PROMPT,
+        name="reseracher",
+    )
 
-tailor_agent = create_agent(
-    model,
-    tools=[match_jobs],
-    system_prompt=TAILOR_PROMPT,
-    name="tailor",
-)
+def create_tailor_agent():
+    """Create tailor agent (no user context needed)"""
+    return create_agent(
+        model,
+        tools=[match_jobs],
+        system_prompt=TAILOR_PROMPT,
+        name="tailor",
+    )
 
-job_matching_agent = create_agent(
-    model,
-    tools=[match_jobs, google_search,exa_search],
-    system_prompt=JOB_MATCHING_PROMPT.format(user_context="No user context available"),
-    response_format=ToolStrategy(JobsList),
-    name="job_matcher",
-)
+def create_job_matching_agent(user_context: str = "No user context available"):
+    """Create job matching agent with user context"""
+    return create_agent(
+        model,
+        tools=[match_jobs, google_search, exa_search],
+        system_prompt=JOB_MATCHING_PROMPT.format(user_context=user_context),
+        response_format=ToolStrategy(JobsList),
+        name="job_matcher",
+    )
 
-@tool
-def research(request: str) -> str:
-    """Research a company
-    Use this when the user wants to research a company
-    
-    Input: Natural Language Query about a company
-    """
-    result = research_agent.invoke({"messages": [{"role": "user", "content": request}]})
-    return result["messages"][-1].text
+def create_research_tool(research_agent):
+    """Create research tool with agent instance"""
+    @tool
+    def research(request: str) -> str:
+        """Research a company
+        Use this when the user wants to research a company
+        
+        Input: Natural Language Query about a company
+        """
+        result = research_agent.invoke({"messages": [{"role": "user", "content": request}]})
+        return result["messages"][-1].text
+    return research
 
-@tool
-def tailor(request: str) -> str:
-    """Tailor a resume
-    Use this when the user wants to tailor their resume to a specific job description
-    
-    Input: Natural Language Query about a job description
-    """
-    result = tailor_agent.invoke({"messages": [{"role": "user", "content": request}]})
-    return result["messages"][-1].text
+def create_tailor_tool(tailor_agent):
+    """Create tailor tool with agent instance"""
+    @tool
+    def tailor(request: str) -> str:
+        """Tailor a resume
+        Use this when the user wants to tailor their resume to a specific job description
+        
+        Input: Natural Language Query about a job description
+        """
+        result = tailor_agent.invoke({"messages": [{"role": "user", "content": request}]})
+        return result["messages"][-1].text
+    return tailor
+
+def create_match_jobs_tool(job_matching_agent):
+    """Create match_jobs tool with agent instance"""
+    @tool
+    def match_jobs(request: str) -> str:
+        """Match jobs to the user's resume
+        Use this when the user wants to find jobs that match their resume
+        
+        Input: Natural Language Query about a job title and skills
+        """
+        result = job_matching_agent.invoke({"messages": [{"role": "user", "content": request}]})
+        
+        # Extract structured response if available
+        structured_response = result.get("structured_response")
+        if structured_response:
+            # If we have JobsList, include it in the response text as JSON
+            if isinstance(structured_response, JobsList):
+                jobs_json = json.dumps([job.dict() for job in structured_response.jobs], indent=2)
+                text_response = result["messages"][-1].text
+                # Append the JSON to make it extractable
+                return f"{text_response}\n\n{jobs_json}"
+            elif isinstance(structured_response, dict) and 'jobs' in structured_response:
+                jobs_json = json.dumps(structured_response['jobs'], indent=2)
+                text_response = result["messages"][-1].text
+                return f"{text_response}\n\n{jobs_json}"
+        
+        return result["messages"][-1].text
+    return match_jobs
 
 def extract_jobs_from_response(text: str) -> List[dict]:
     """Extract job objects from agent response text"""
@@ -289,46 +331,16 @@ def extract_jobs_from_response(text: str) -> List[dict]:
     
     return jobs
 
-@tool
-def match_jobs(request: str) -> str:
-    """Match jobs to the user's resume
-    Use this when the user wants to find jobs that match their resume
-    
-    Input: Natural Language Query about a job title and skills
-    """
-    result = job_matching_agent.invoke({"messages": [{"role": "user", "content": request}]})
-    
-    # Extract structured response if available
-    structured_response = result.get("structured_response")
-    if structured_response:
-        # If we have JobsList, include it in the response text as JSON
-        if isinstance(structured_response, JobsList):
-            jobs_json = json.dumps([job.dict() for job in structured_response.jobs], indent=2)
-            text_response = result["messages"][-1].text
-            # Append the JSON to make it extractable
-            return f"{text_response}\n\n{jobs_json}"
-        elif isinstance(structured_response, dict) and 'jobs' in structured_response:
-            jobs_json = json.dumps(structured_response['jobs'], indent=2)
-            text_response = result["messages"][-1].text
-            return f"{text_response}\n\n{jobs_json}"
-    
-    return result["messages"][-1].text
-
-
-# Create base supervisor agent - this will stream tool calls properly
-_base_supervisor_agent = create_agent(
-    model,
-    tools=[research, tailor, match_jobs],
-    system_prompt=SUPERVISOR_PROMPT.format(user_context="No user context available"),
-)
+# Note: Tools will be created dynamically based on user context
+# The supervisor agent will be created per user context in supervisor_node
 
 # Define state with UI support for the wrapper graph
 class AgentState(TypedDict):
     messages: Annotated[Sequence[AIMessage], add_messages]
     ui: Annotated[Sequence[AnyUIMessage], ui_message_reducer]
 
-async def add_ui_messages_node(state: AgentState):
-    """Post-processing node that adds UI messages for jobs without blocking streaming"""
+async def add_ui_messages_node(state: AgentState, config: Optional[RunnableConfig] = None):
+    """Post-processing node that adds UI messages for jobs and saves them to database"""
     # Get all messages to find the last AI message and any tool messages
     messages = state.get("messages", [])
     if not messages:
@@ -336,6 +348,11 @@ async def add_ui_messages_node(state: AgentState):
     
     last_message = messages[-1]
     jobs = []
+    
+    # Extract user_id from config if available
+    user_id = None
+    if config and "configurable" in config:
+        user_id = config["configurable"].get("user_id")
     
     # Check if this is a response from match_jobs tool call
     # First, try to find jobs in tool messages from match_jobs
@@ -363,6 +380,40 @@ async def add_ui_messages_node(state: AgentState):
         elif not isinstance(message_text, str):
             message_text = str(message_text)
         jobs = extract_jobs_from_response(message_text)
+    
+    # Save jobs to database if user_id is available
+    if jobs:
+        if user_id:
+            try:
+                print(f"[DEBUG] Saving {len(jobs)} jobs to user_jobs table for user_id={user_id}")
+                # Run all blocking database operations in thread pool concurrently
+                save_tasks = []
+                for job in jobs:
+                    task = asyncio.to_thread(
+                        save_user_job,
+                        user_id=user_id,
+                        job_title=job.get("job_title", ""),
+                        company=job.get("company", ""),
+                        location=job.get("location", ""),
+                        match_rating=job.get("match_rating", 0),
+                        link=job.get("link", "")
+                    )
+                    save_tasks.append(task)
+                
+                # Wait for all saves to complete
+                saved_jobs = await asyncio.gather(*save_tasks, return_exceptions=True)
+                for i, saved in enumerate(saved_jobs):
+                    if isinstance(saved, Exception):
+                        print(f"[ERROR] Failed to save job {i}: {saved}")
+                    else:
+                        print(f"[DEBUG] Successfully saved job: {saved.get('id')} - {jobs[i].get('job_title')}")
+            except Exception as e:
+                # Log error but don't fail the node
+                print(f"[ERROR] Error saving jobs to database: {e}")
+                import traceback
+                traceback.print_exc()
+        else:
+            print(f"[WARNING] Cannot save jobs - missing user_id. Config: {config}")
     
     # If jobs were found, push UI message with proper message association
     if jobs and isinstance(last_message, AIMessage):
@@ -418,9 +469,82 @@ def should_add_ui(state: AgentState) -> str:
 # This allows streaming while still supporting UI messages
 workflow = StateGraph(AgentState)
 
-def supervisor_node(state: AgentState):
-    """Wrapper node that trims messages before calling supervisor to prevent context length errors"""
+async def supervisor_node(state: AgentState, config: Optional[RunnableConfig] = None):
+    """Wrapper node that trims messages, loads user context, and saves chat history"""
     messages = state.get("messages", [])
+    
+    # Extract user_id and thread_id from config
+    user_id = None
+    thread_id = None
+    if config:
+        print(f"[DEBUG] Config received: {config}")
+        if "configurable" in config:
+            user_id = config["configurable"].get("user_id")
+            thread_id = config["configurable"].get("thread_id")
+            print(f"[DEBUG] Extracted user_id: {user_id}, thread_id: {thread_id}")
+    else:
+        print("[DEBUG] No config received in supervisor_node")
+    
+    # Fallback: try to get user_id from message metadata if not in config
+    if not user_id and messages:
+        print("[DEBUG] Trying to extract user_id from message metadata")
+        for msg in reversed(messages):
+            if hasattr(msg, 'additional_kwargs') and msg.additional_kwargs:
+                metadata = msg.additional_kwargs.get("metadata", {})
+                if metadata and "user_id" in metadata:
+                    user_id = metadata["user_id"]
+                    print(f"[DEBUG] Found user_id in metadata: {user_id}")
+                    break
+    
+    # Load user context if user_id is available
+    user_context = "No user context available"
+    if user_id:
+        try:
+            # Run blocking database operation in thread pool
+            user_context = await asyncio.to_thread(format_user_context, user_id)
+        except Exception as e:
+            print(f"Error loading user context: {e}")
+    
+    # Create agents with user context
+    research_agent = create_research_agent()
+    tailor_agent = create_tailor_agent()
+    job_matching_agent = create_job_matching_agent(user_context)
+    
+    # Create tools with agent instances
+    research_tool = create_research_tool(research_agent)
+    tailor_tool = create_tailor_tool(tailor_agent)
+    match_jobs_tool = create_match_jobs_tool(job_matching_agent)
+    
+    # Create supervisor agent with user context
+    supervisor_agent = create_agent(
+        model,
+        tools=[research_tool, tailor_tool, match_jobs_tool],
+        system_prompt=SUPERVISOR_PROMPT.format(user_context=user_context),
+    )
+    
+    # Save incoming user messages to chat history
+    if messages:
+        last_message = messages[-1]
+        if isinstance(last_message, HumanMessage):
+            if user_id and thread_id:
+                try:
+                    content = last_message.content if isinstance(last_message.content, str) else str(last_message.content)
+                    print(f"[DEBUG] Saving user message to chat_history: user_id={user_id}, thread_id={thread_id}")
+                    # Run blocking database operation in thread pool
+                    saved = await asyncio.to_thread(
+                        save_chat_message,
+                        user_id=user_id,
+                        thread_id=thread_id,
+                        role="user",
+                        content=content
+                    )
+                    print(f"[DEBUG] Successfully saved user message: {saved.get('id')}")
+                except Exception as e:
+                    print(f"[ERROR] Error saving user message to chat history: {e}")
+                    import traceback
+                    traceback.print_exc()
+            else:
+                print(f"[WARNING] Cannot save user message - missing user_id={user_id} or thread_id={thread_id}")
     
     # Trim messages if they exist to stay well under the 128k token limit
     # Keep 100k tokens to leave room for response and function calls
@@ -442,8 +566,45 @@ def supervisor_node(state: AgentState):
         trimmed_state = state
     
     # Call the supervisor agent with trimmed messages and recursion limit config
-    config = {"recursion_limit": 25}  # Set explicit recursion limit
-    result = _base_supervisor_agent.invoke(trimmed_state, config=config)
+    agent_config = {"recursion_limit": 25}  # Set explicit recursion limit
+    # Run blocking agent invoke in thread pool to avoid blocking event loop
+    def invoke_agent():
+        return supervisor_agent.invoke(trimmed_state, config=agent_config)
+    result = await asyncio.to_thread(invoke_agent)
+    
+    # Save assistant response to chat history
+    if result.get("messages"):
+        last_ai_message = None
+        for msg in reversed(result["messages"]):
+            if isinstance(msg, AIMessage):
+                last_ai_message = msg
+                break
+        
+        if last_ai_message:
+            if user_id and thread_id:
+                try:
+                    content = last_ai_message.content
+                    if isinstance(content, list):
+                        content = " ".join(str(item) for item in content)
+                    elif not isinstance(content, str):
+                        content = str(content)
+                    
+                    print(f"[DEBUG] Saving assistant message to chat_history: user_id={user_id}, thread_id={thread_id}")
+                    # Run blocking database operation in thread pool
+                    saved = await asyncio.to_thread(
+                        save_chat_message,
+                        user_id=user_id,
+                        thread_id=thread_id,
+                        role="assistant",
+                        content=content
+                    )
+                    print(f"[DEBUG] Successfully saved assistant message: {saved.get('id')}")
+                except Exception as e:
+                    print(f"[ERROR] Error saving assistant message to chat history: {e}")
+                    import traceback
+                    traceback.print_exc()
+            else:
+                print(f"[WARNING] Cannot save assistant message - missing user_id={user_id} or thread_id={thread_id}")
     
     # Preserve UI state in result
     if "ui" in state:
@@ -473,8 +634,18 @@ workflow.add_conditional_edges(
 # After adding UI, end
 workflow.add_edge("add_ui", END)
 
-# Compile with recursion limit and checkpoint for state management
-supervisor_agent = workflow.compile(
-   
-)
+# Compile the workflow
+# Note: LangGraph API automatically manages checkpointing.
+# To use a custom Postgres instance (e.g., Supabase), set POSTGRES_URI_CUSTOM in your .env
+# See: https://docs.langchain.com/langsmith/env-var#postgres_uri_custom
+# 
+# LangGraph API will automatically:
+# - Create checkpointing tables in the specified Postgres database
+# - Manage connections and setup
+# - Handle checkpointing without requiring custom code
+#
+# Your custom Supabase tables (chat_history, user_jobs) are separate and will
+# continue to work independently of LangGraph's checkpointing system.
+
+supervisor_agent = workflow.compile()
 

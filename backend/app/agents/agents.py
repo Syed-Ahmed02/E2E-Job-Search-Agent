@@ -24,7 +24,7 @@ from app.services.database import format_user_context, save_chat_message, save_u
 model = ChatOpenAI(
     api_key=os.getenv("OPENROUTER_API_KEY"),
     base_url="https://openrouter.ai/api/v1",
-    model="x-ai/grok-4-fast",
+    model="minimax/minimax-m2:free",
     temperature=0.1
 )
 

@@ -2,3 +2,4 @@ backend/.venv/
 backend/.env
 node_modules
 backend/app/__pycache__
+backend/__pycache__*

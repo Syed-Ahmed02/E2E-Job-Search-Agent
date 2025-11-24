@@ -1,0 +1,44 @@
+Query,Precision@10,Recall@10,Recall@50,MRR,NDCG@10,Total Relevant Found (top 10),Total Relevant Found (top 50),Total Relevant Exist,Top Match,Category
+Senior Python Developer with Flask and AWS cloud experience,0.6,0.0033482142857142855,0.023995535714285716,1.0,0.6936634693435663,6,43,1792,Python Engineer,Technology
+Junior Software Engineer with React and JavaScript skills,0.8,0.0009537434430138292,0.004291845493562232,1.0,0.8603818544462509,8,36,8388,"React, HTML/CSS programmer",Technology
+Full Stack Developer with Node.js and MongoDB experience,0.8,0.005780346820809248,0.030346820809248554,1.0,0.8389574121760602,8,42,1384,Mid Level Software Engineer,Technology
+"DevOps Engineer with Kubernetes, Docker, and CI/CD pipeline expertise",1.0,0.0013201320132013201,0.005808580858085809,1.0,1.0,10,44,7575,DevOps Senior Leader,Technology
+Data Scientist specializing in machine learning and TensorFlow,0.9,0.011568123393316195,0.055269922879177376,1.0,0.9266360779006401,9,43,778,Machine Learning Engineer (Artificial Intelligence),Technology
+Project Manager for construction and infrastructure projects,1.0,0.0009339684318670029,0.004576445316148314,1.0,1.0,10,49,10707,Project Manager,Business/Management
+Account Executive with B2B sales experience in technology sector,1.0,0.0004709650072999576,0.002354825036499788,1.0,1.0,10,50,21233,Sales Manager -Food Ingredients,Business/Management
+Business Analyst with data analysis and SQL skills,1.0,0.002101281781886951,0.010506408909434755,1.0,1.0,10,50,4759,Business Analyst,Technology
+Operations Manager for supply chain and logistics,1.0,0.0011304544426859599,0.005200090436355415,1.0,1.0,10,46,8846,Logistics Operations Manager,Business/Management
+Product Manager with agile methodology experience,1.0,0.00116918040453642,0.005027475739506606,1.0,1.0,10,43,8553,Product Manager,Business/Management
+Accountant with CPA certification and financial reporting experience,0.8,0.002126528442317916,0.009835194045720362,1.0,0.8364586133797037,8,37,3762,Finance Officer,Finance/Accounting
+Financial Analyst with Excel and financial modeling skills,0.6,0.0009612303748798462,0.006247997436719,0.25,0.4673791184803734,6,39,6242,"Senior Executive/Assistant Manager, Client Coverage",Business/Management
+Accounts Executive for accounts payable and receivable management,1.0,0.0005366822304513498,0.0026834111522567486,1.0,1.0,10,50,18633,Account Executive,Business/Management
+Audit Assistant with accounting degree and audit experience,1.0,0.0009061254077564335,0.004530627038782167,1.0,1.0,10,50,11036,Audit Senior / Semi-Senior / Audit Assistant,Finance/Accounting
+Sales Representative for medical devices and healthcare products,1.0,0.0018228217280349982,0.008567262121764492,1.0,1.0,10,47,5486,Medical Sales Representative (JOHOR),Business/Management
+Marketing Manager with digital marketing and social media experience,1.0,0.0008902341315766046,0.004451170657883023,1.0,1.0,10,50,11233,Digital Marketing Assistant Manager,Business/Management
+Business Development Executive for B2B client acquisition,1.0,0.0005594092638174089,0.0026851644663235625,1.0,1.0,10,48,17876,Sales Executive,Business/Management
+Customer Relationship Manager with account management skills,1.0,0.0004779200917606576,0.0023896004588032883,1.0,1.0,10,50,20924,Sales Executive/Account Manager,Business/Management
+Procurement Executive with contract management and supplier relations,1.0,0.0005918560606060606,0.0025449810606060605,1.0,1.0,10,43,16896,Procurement Manager,Business/Management
+Supply Chain Planner with inventory management and forecasting,1.0,0.0034831069313827935,0.01637060257749913,1.0,1.0,10,47,2871,Supply Chain Planning (Executive/Senior Executive),Supply Chain
+Logistics Coordinator for warehouse and distribution operations,1.0,0.004604051565377533,0.022099447513812154,1.0,1.0,10,48,2172,Assistant Admin Manager,Supply Chain
+Purchasing Officer with vendor management experience,1.0,0.002581977794990963,0.011360702297960238,1.0,1.0,10,44,3873,Purchasing Assistant,Supply Chain
+Human Resources Specialist for recruitment and employee relations,1.0,0.0019406171162429653,0.009703085581214826,1.0,1.0,10,50,5153,Senior Human Resource Executive,HR/Administration
+HR Executive with talent acquisition and onboarding experience,0.6,0.00041611762258131634,0.0027741174838754423,0.5,0.48993086854170786,6,40,14419,Human Resources Business Partner (HRBP),Business/Management
+Administrative Assistant with office management skills,1.0,0.0007894529091339702,0.003947264545669851,1.0,1.0,10,50,12667,ADMIN ASSISTANT,HR/Administration
+Executive Assistant with calendar management and travel coordination,1.0,0.00046849379245724994,0.0022487702037948,1.0,1.0,10,48,21345,Executive Assistant,Business/Management
+Mechanical Engineer with CAD design and manufacturing experience,1.0,0.0010554089709762533,0.005277044854881266,1.0,1.0,10,50,9475,Mechanical Engineer,Technology
+Quality Assurance Engineer with testing and quality control,1.0,0.0008392077878482712,0.004196038939241357,1.0,1.0,10,50,11916,Quality Engineer Analyst,Technology
+Production Supervisor for manufacturing operations,1.0,0.0038669760247486465,0.01894818252126837,1.0,1.0,10,49,2586,Manager / Sr. Manager - Production (Surgical Manufacturing),Business/Management
+Customer Support Agent bilingual in English and Spanish,0.9,0.002257336343115124,0.010785051417105593,1.0,0.9266360779006401,9,43,3987,Customer Service Specialist | Bilingual | Perm Night Shift | Bangsar South,Customer Service
+Customer Service Representative with call center experience,1.0,0.002008838891120932,0.010044194455604661,1.0,1.0,10,50,4978,Customer Service,Customer Service
+Technical Support Specialist with troubleshooting skills,1.0,0.002376990729736154,0.010696458283812693,1.0,1.0,10,45,4207,Technical Support Specialist,Customer Service
+Software Developer position in Kuala Lumpur,0.5,0.0027624309392265192,0.015469613259668509,1.0,0.6117952373568122,5,28,1810,Application Developers ( Singapore),Technology
+Sales Manager job in Selangor,0.9,0.0007447864945382324,0.003641178417742469,1.0,0.9363792118010483,9,44,12084,Sales Management Trainee / Sales Executive (Fresh Grad is encouraged to apply),Business/Management
+Accountant role in Petaling Jaya,0.0,0.0,0.006711409395973154,0.07692307692307693,0.0,0,6,894,Assistant Finance Manager,Finance/Accounting
+Full-time Marketing Executive position,0.8,0.0005023863350916855,0.003014318010550113,1.0,0.8263333286520083,8,48,15924,Marketing Executive,Business/Management
+Contract-based Project Manager role,0.8,0.0008004802881729037,0.004702821693015809,1.0,0.8553475075669357,8,47,9994,Senior Quantity Surveyor,Business/Management
+Part-time Customer Service position,1.0,0.0010744600838078866,0.005264854410658644,1.0,1.0,10,49,9307,SALES SUPPORT ADMIN,Customer Service
+"Senior Data Analyst with Python, SQL, and Tableau experience in Kuala Lumpur",0.4,0.0017913121361397223,0.014778325123152709,1.0,0.5637884576902256,4,33,2233,Data scientist,Technology
+Junior Account Executive with sales experience and own transport in Klang,1.0,0.0012884937508053087,0.005927071253704419,1.0,1.0,10,46,7761,Junior Account Executive,Business/Management
+Procurement Manager with supply chain experience and contract negotiation skills,0.5,0.0005957345406886692,0.004170141784820684,0.3333333333333333,0.39486008436280445,5,35,8393,PURCHASING,Business/Management
+HR Manager with recruitment experience for tech startup in Malaysia,0.9,0.0037562604340567614,0.009181969949916527,1.0,0.9363792118010483,9,22,2396,"Human Resource Executive (PJ, Sunway, Puchong)",Business/Management
+Supply Chain Planning role with inventory management and S&OP experience,1.0,0.0025297242600556538,0.01264862130027827,1.0,1.0,10,50,3953,Program Executive,Supply Chain

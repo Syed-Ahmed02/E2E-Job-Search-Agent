@@ -1,0 +1,18 @@
+======================================================================
+JOB MATCHING AGENT EVALUATION REPORT
+======================================================================
+
+Model: openai/gpt-4o-mini
+Temperature: 0.1
+Evaluation Date: 2025-11-23 21:22:37
+
+Dataset:
+  - 30 CVs
+  - 5 Job Vacancies
+  - 145 CV-Vacancy pairs evaluated
+
+======================================================================
+KEY METRICS
+======================================================================
+
+Pearson Correlation Coefficient: r = -0.0324 (p = 6.9858e-01)

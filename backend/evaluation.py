@@ -1,4 +1,5 @@
 import os
+import json
 import pandas as pd
 import numpy as np
 from datasets import load_dataset
@@ -6,10 +7,15 @@ import chromadb
 from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_core.documents import Document
+from dotenv import load_dotenv
 import warnings
 import matplotlib.pyplot as plt
 import seaborn as sns
 from pathlib import Path
+import time
+
+# Load environment variables
+load_dotenv()
 
 # Suppress warnings for cleaner output
 warnings.filterwarnings('ignore')
@@ -17,6 +23,121 @@ warnings.filterwarnings('ignore')
 # Set style for better-looking plots
 plt.style.use('seaborn-v0_8-darkgrid')
 sns.set_palette("husl")
+
+def sanitize_metadata(metadata):
+    """
+    Sanitize metadata to ensure all values are valid ChromaDB types.
+    ChromaDB accepts: str, int, float, bool, None
+    Converts None to empty string and ensures all values are valid types.
+    """
+    sanitized = {}
+    for key, value in metadata.items():
+        if value is None:
+            sanitized[key] = ""  # Convert None to empty string
+        elif isinstance(value, (str, int, float, bool)):
+            sanitized[key] = value
+        elif isinstance(value, list):
+            # Convert lists to comma-separated string
+            sanitized[key] = ", ".join(str(v) for v in value if v is not None)
+        elif isinstance(value, dict):
+            # Convert dicts to JSON string
+            sanitized[key] = json.dumps(value)
+        else:
+            # Convert any other type to string
+            sanitized[key] = str(value) if value is not None else ""
+    return sanitized
+
+def create_vector_store_with_batching(client, documents, embeddings, collection_name, batch_size=100):
+    """
+    Create vector store with batched uploads to prevent timeouts.
+    Uses incremental embedding and upload to handle large datasets.
+    """
+    print(f"\n   Starting batched upload of {len(documents)} documents...")
+    print(f"   Batch size: {batch_size} documents per batch")
+    
+    # Create empty collection first
+    try:
+        collection = client.create_collection(
+            name=collection_name,
+            metadata={"description": "Evaluation job dataset"}
+        )
+    except Exception as e:
+        # Collection might already exist
+        try:
+            collection = client.get_collection(name=collection_name)
+            print(f"   Using existing collection: {collection_name}")
+        except:
+            raise Exception(f"Failed to create or get collection: {e}")
+    
+    # Process documents in batches
+    total_batches = (len(documents) + batch_size - 1) // batch_size
+    
+    print(f"   Processing {total_batches} batches...")
+    
+    for batch_idx in range(total_batches):
+        start_idx = batch_idx * batch_size
+        end_idx = min(start_idx + batch_size, len(documents))
+        batch_docs = documents[start_idx:end_idx]
+        
+        print(f"   Batch {batch_idx + 1}/{total_batches}: Processing documents {start_idx + 1}-{end_idx}...")
+        
+        # Prepare batch data
+        batch_ids = [f"doc_{start_idx + i}" for i in range(len(batch_docs))]
+        batch_texts = [doc.page_content for doc in batch_docs]
+        # Sanitize metadata to ensure all values are valid ChromaDB types
+        batch_metadatas = [sanitize_metadata(doc.metadata) for doc in batch_docs]
+        
+        # Generate embeddings for this batch
+        try:
+            batch_embeddings = embeddings.embed_documents(batch_texts)
+        except Exception as e:
+            print(f"      Error embedding batch {batch_idx + 1}: {e}")
+            # Retry once
+            time.sleep(2)
+            try:
+                batch_embeddings = embeddings.embed_documents(batch_texts)
+            except Exception as e2:
+                print(f"      Failed to embed batch {batch_idx + 1} after retry. Skipping...")
+                continue
+        
+        # Upload batch to ChromaDB with retry logic
+        max_retries = 3
+        retry_delay = 5
+        
+        for retry in range(max_retries):
+            try:
+                collection.add(
+                    ids=batch_ids,
+                    embeddings=batch_embeddings,
+                    documents=batch_texts,
+                    metadatas=batch_metadatas
+                )
+                print(f"      ✓ Uploaded batch {batch_idx + 1}/{total_batches} ({len(batch_docs)} documents)")
+                break
+            except Exception as e:
+                if retry < max_retries - 1:
+                    wait_time = retry_delay * (retry + 1)
+                    print(f"      ⚠ Error uploading batch {batch_idx + 1} (attempt {retry + 1}/{max_retries}): {e}")
+                    print(f"      Retrying in {wait_time} seconds...")
+                    time.sleep(wait_time)
+                else:
+                    print(f"      ✗ Failed to upload batch {batch_idx + 1} after {max_retries} attempts: {e}")
+                    raise
+        
+        # Small delay between batches to avoid rate limiting
+        if batch_idx < total_batches - 1:
+            time.sleep(0.5)
+    
+    print(f"\n   ✓ Successfully uploaded all {len(documents)} documents to ChromaDB Cloud!")
+    
+    # Create and return vector store
+    vector_store = Chroma(
+        client=client,
+        collection_name=collection_name,
+        embedding_function=embeddings
+    )
+    
+    return vector_store
 
 def main():
     print("=== RAG Retrieval Quality Evaluation ===\n")
@@ -78,18 +199,57 @@ def main():
 
     print(f"   Prepared {len(documents)} documents for ingestion.")
 
-    # Use In-Memory ChromaDB Client for evaluation to avoid quota limits
-    # This is isolated from production and has no record limits
-    print("   Creating in-memory ChromaDB instance (no quota limits)...")
-    client = chromadb.EphemeralClient()
+    # Connect to ChromaDB Cloud
+    chroma_api_key = os.getenv("CHROMA_API_KEY")
+    if not chroma_api_key:
+        raise ValueError("CHROMA_API_KEY environment variable must be set in .env file")
     
-    # Create Vector Store
-    print("   Embedding documents and creating vector store (this may take 10-20 minutes for 60k jobs)...")
-    vector_store = Chroma.from_documents(
-        documents=documents,
-        embedding=embeddings,
+    print("   Connecting to ChromaDB Cloud...")
+    client = chromadb.CloudClient(
+        api_key=chroma_api_key,
+        tenant='361f16d2-3a10-4479-854c-519de88ae973',
+        database='job_search_db'
+        )
+    
+    # Create or get collection
+    collection_name = "evaluation_jobs"
+    print(f"   Using collection: {collection_name}")
+    
+    # Check if collection exists and get count
+    try:
+        existing_collection = client.get_collection(name=collection_name)
+        existing_count = existing_collection.count()
+        print(f"   Found existing collection with {existing_count} documents.")
+        
+        if existing_count == len(documents):
+            print("   Collection already has all documents. Using existing collection.")
+            vector_store = Chroma(
         client=client,
-        collection_name="evaluation_jobs"
+                collection_name=collection_name,
+                embedding_function=embeddings
+            )
+        else:
+            print(f"   Collection has {existing_count} documents, need {len(documents)}. Will recreate for clean evaluation.")
+            # Delete and recreate for clean evaluation
+            try:
+                client.delete_collection(name=collection_name)
+                print("   Deleted existing collection for fresh evaluation.")
+            except Exception as del_e:
+                print(f"   Warning: Could not delete collection: {del_e}")
+            vector_store = create_vector_store_with_batching(
+                client, documents, embeddings, collection_name
+            )
+    except chromadb.errors.NotFoundError:
+        # Collection doesn't exist - create it
+        print("   Collection doesn't exist. Creating new collection with batched upload...")
+        vector_store = create_vector_store_with_batching(
+            client, documents, embeddings, collection_name
+        )
+    except Exception as e:
+        print(f"   Error checking collection: {e}")
+        print("   Attempting to create new collection with batched upload...")
+        vector_store = create_vector_store_with_batching(
+            client, documents, embeddings, collection_name
     )
 
     print("   Vector Store initialized and populated.")

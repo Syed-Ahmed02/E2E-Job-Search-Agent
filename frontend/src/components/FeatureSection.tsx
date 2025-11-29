@@ -28,16 +28,16 @@ export default function FeatureSection() {
                         <Card
                             className="group overflow-hidden px-6 pt-6">
                             <CalendarCheck className="text-primary size-5" />
-                            <h3 className="text-foreground mt-5 text-lg font-semibold">Intelligent Code Review</h3>
-                            <p className="text-muted-foreground mt-3 text-balance">Our AI analyzes your code for bugs, security issues, and optimization opportunities.</p>
+                            <h3 className="text-foreground mt-5 text-lg font-semibold">Application Tracking</h3>
+                            <p className="text-muted-foreground mt-3 text-balance">Stay organized with automated tracking of your applications, interviews, and follow-ups all in one place.</p>
 
                             <CodeReviewIllustration />
                         </Card>
                         <Card
                             className="group overflow-hidden px-6 pt-6">
                             <Sparkles className="text-primary size-5" />
-                            <h3 className="text-foreground mt-5 text-lg font-semibold">Contextual AI Assistant</h3>
-                            <p className="text-muted-foreground mt-3 text-balance">A personalized AI companion that understands your codebase and helps solve complex...</p>
+                            <h3 className="text-foreground mt-5 text-lg font-semibold">AI Job Search Assistant</h3>
+                            <p className="text-muted-foreground mt-3 text-balance">Get personalized job recommendations, cover letter assistance, and interview preparation tailored to your career goals.</p>
 
                             <div className="mask-b-from-50 -mx-2 -mt-2 px-2 pt-2">
                                 <AIAssistantIllustration />
@@ -94,9 +94,9 @@ const CodeReviewIllustration = () => {
                     <div className="bg-background size-6 rounded-full border p-0.5 shadow shadow-zinc-950/5">
                        <CursorLight />
                     </div>
-                    <span className="text-muted-foreground text-sm font-medium">Méschac Irung</span>
+                    <span className="text-muted-foreground text-sm font-medium">Software Engineer</span>
 
-                    <span className="text-muted-foreground/75 text-xs">2m</span>
+                    <span className="text-muted-foreground/75 text-xs">Applied</span>
                 </div>
 
                 <div className="ml-8 space-y-2">
@@ -105,11 +105,11 @@ const CodeReviewIllustration = () => {
                     <div className="bg-foreground/10 h-2 w-1/2 rounded-full"></div>
                 </div>
 
-                <Signature className="ml-8 mt-3 size-5" />
+                <CalendarCheck className="ml-8 mt-3 size-5" />
             </Card>
             <Card className="aspect-3/5 absolute -top-4 right-0 flex w-2/5 translate-y-4 p-2 transition-transform duration-200 ease-in-out group-hover:rotate-3">
                 <div className="bg-foreground/5 m-auto flex size-10 rounded-full">
-                    <Play className="fill-foreground/50 stroke-foreground/50 m-auto size-4" />
+                    <CalendarCheck className="fill-foreground/50 stroke-foreground/50 m-auto size-4" />
                 </div>
             </Card>
         </div>
@@ -123,7 +123,7 @@ const AIAssistantIllustration = () => {
             className="mt-6 aspect-video translate-y-4 p-4 pb-6 transition-transform duration-200 group-hover:translate-y-0">
             <div className="w-fit">
                 <Sparkles className="size-3.5 fill-purple-300 stroke-purple-300" />
-                <p className="mt-2 line-clamp-2 text-sm">How can I optimize my neural network to reduce inference time while maintaining accuracy?</p>
+                <p className="mt-2 line-clamp-2 text-sm">What are the best jobs for a software engineer with 5 years of experience?</p>
             </div>
             <div className="bg-foreground/5 -mx-3 -mb-3 mt-3 space-y-3 rounded-lg p-3">
                 <div className="text-muted-foreground text-sm">Ask AI Assistant</div>

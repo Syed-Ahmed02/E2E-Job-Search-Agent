@@ -69,81 +69,97 @@ function Header() {
     }, []);
     return (
         <header className="w-full z-40 fixed top-0 left-0 bg-secondary rounded-b-lg">
-            <div className="container relative mx-auto min-h-20 flex items-center justify-between">
-                {/* Desktop Navigation - Hidden on mobile */}
-                <div className="hidden lg:flex justify-start items-center gap-4 flex-row">
-                    <NavigationMenu className="flex justify-start items-start">
-                        <NavigationMenuList className="flex justify-start gap-4 flex-row">
-                            {navigationItems.map((item) => (
-                                <NavigationMenuItem key={item.title}>
-                                    {item.href ? (
-                                        <>
-                                            <NavigationMenuLink>
-                                                <Button variant="ghost">{item.title}</Button>
-                                            </NavigationMenuLink>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <NavigationMenuTrigger className="font-medium text-sm">
-                                                {item.title}
-                                            </NavigationMenuTrigger>
-                                            <NavigationMenuContent className="!w-[450px] p-4">
-                                                <div className="flex flex-col lg:grid grid-cols-2 gap-4">
-                                                    <div className="flex flex-col h-full justify-between">
-                                                        <div className="flex flex-col">
-                                                            <p className="text-base">{item.title}</p>
-                                                            <p className="text-muted-foreground text-sm">
-                                                                {item.description}
-                                                            </p>
+            <div className="container relative mx-auto min-h-20 w-full">
+                {/* Desktop Layout - Grid for proper centering */}
+                <div className="hidden lg:grid grid-cols-3 items-center w-full min-h-20">
+                    {/* Desktop Navigation - Left */}
+                    <div className="flex justify-start items-center">
+                        <NavigationMenu className="flex justify-start items-start">
+                            <NavigationMenuList className="flex justify-start  flex-row">
+                                {navigationItems.map((item) => (
+                                    <NavigationMenuItem key={item.title}>
+                                        {item.href ? (
+                                            <>
+                                                <NavigationMenuLink>
+                                                    <Button variant="ghost">{item.title}</Button>
+                                                </NavigationMenuLink>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <NavigationMenuTrigger className="font-medium text-sm">
+                                                    {item.title}
+                                                </NavigationMenuTrigger>
+                                                <NavigationMenuContent className="!w-[450px] p-4">
+                                                    <div className="flex flex-col lg:grid grid-cols-2 gap-4">
+                                                        <div className="flex flex-col h-full justify-between">
+                                                            <div className="flex flex-col">
+                                                                <p className="text-base">{item.title}</p>
+                                                                <p className="text-muted-foreground text-sm">
+                                                                    {item.description}
+                                                                </p>
+                                                            </div>
+                                                            <Button size="sm" className="mt-10">
+                                                                Book a call today
+                                                            </Button>
                                                         </div>
-                                                        <Button size="sm" className="mt-10">
-                                                            Book a call today
-                                                        </Button>
+                                                        <div className="flex flex-col text-sm h-full justify-end">
+                                                            {item.items?.map((subItem) => (
+                                                                <NavigationMenuLink
+                                                                    href={subItem.href}
+                                                                    key={subItem.title}
+                                                                    className="flex flex-row justify-between items-center hover:bg-muted py-2 px-4 rounded"
+                                                                >
+                                                                    <span>{subItem.title}</span>
+                                                                    <MoveRight className="w-4 h-4 text-muted-foreground" />
+                                                                </NavigationMenuLink>
+                                                            ))}
+                                                        </div>
                                                     </div>
-                                                    <div className="flex flex-col text-sm h-full justify-end">
-                                                        {item.items?.map((subItem) => (
-                                                            <NavigationMenuLink
-                                                                href={subItem.href}
-                                                                key={subItem.title}
-                                                                className="flex flex-row justify-between items-center hover:bg-muted py-2 px-4 rounded"
-                                                            >
-                                                                <span>{subItem.title}</span>
-                                                                <MoveRight className="w-4 h-4 text-muted-foreground" />
-                                                            </NavigationMenuLink>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            </NavigationMenuContent>
-                                        </>
-                                    )}
-                                </NavigationMenuItem>
-                            ))}
-                        </NavigationMenuList>
-                    </NavigationMenu>
+                                                </NavigationMenuContent>
+                                            </>
+                                        )}
+                                    </NavigationMenuItem>
+                                ))}
+                            </NavigationMenuList>
+                        </NavigationMenu>
+                    </div>
+
+                    {/* Title - Centered */}
+                    <div className="flex justify-center items-center">
+                        <p className="font-semibold">E2E Job Search Agent</p>
+                    </div>
+
+                    {/* Desktop Auth Buttons - Right */}
+                    <div className="flex justify-end gap-4">
+                        {user ? (
+                            <Button variant="outline" onClick={logout}>Sign out</Button>
+                        ) : (
+                            <>
+                                <Button variant="outline"><Link href="/auth/login">Sign in</Link></Button>
+                                <Button><Link href="/auth/sign-up">Get started</Link></Button>
+                            </>
+                        )}
+                    </div>
                 </div>
 
-                {/* Title - Centered on all screen sizes */}
-                <div className="flex justify-center flex-1">
-                    <p className="font-semibold text-center">E2E Job Search Agent</p>
-                </div>
+                {/* Mobile Layout */}
+                <div className="flex lg:hidden items-center justify-between w-full min-h-20 relative">
+                    {/* Mobile Hamburger Menu Button */}
+                    <div className="flex">
+                        <Button variant="ghost" onClick={() => setOpen(!isOpen)}>
+                            {isOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+                        </Button>
+                    </div>
+                    
+                    {/* Title - Centered on mobile */}
+                    <div className="absolute left-1/2 transform -translate-x-1/2">
+                        <p className="font-semibold">E2E Job Search Agent</p>
+                    </div>
 
-                {/* Desktop Auth Buttons - Hidden on mobile */}
-                <div className="hidden lg:flex justify-end gap-4">
-                    {user ? (
-                        <Button variant="outline" onClick={logout}>Sign out</Button>
-                    ) : (
-                        <>
-                            <Button variant="outline"><Link href="/auth/login">Sign in</Link></Button>
-                            <Button><Link href="/auth/sign-up">Get started</Link></Button>
-                        </>
-                    )}
-                </div>
+                    {/* Spacer for balance */}
+                    <div className="w-10"></div>
 
-                {/* Mobile Hamburger Menu - Only visible on mobile */}
-                <div className="flex lg:hidden">
-                    <Button variant="ghost" onClick={() => setOpen(!isOpen)}>
-                        {isOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-                    </Button>
+                    {/* Mobile Hamburger Menu Dropdown */}
                     {isOpen && (
                         <>
                             {/* Backdrop overlay with blur */}

@@ -31,7 +31,7 @@ embeddings = HuggingFaceEmbeddings(
         )
 vector_store = Chroma(
     client=client,
-    collection_name="skills_jobs",
+    collection_name="evaluation_jobs",
     embedding_function=embeddings
 )
 chroma_retriever = vector_store.as_retriever(search_type="similarity", search_kwargs={"k":1})

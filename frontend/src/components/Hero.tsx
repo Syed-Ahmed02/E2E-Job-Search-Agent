@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { MoveRight, PhoneCall } from "lucide-react";
 import { Button } from "@/components/ui/button";
-
+import Link from "next/link";
 function Hero() {
   const [titleNumber, setTitleNumber] = useState(0);
   const titles = useMemo(
@@ -62,8 +62,9 @@ function Hero() {
           </div>
           <div className="flex flex-row gap-3">
             
-            <Button size="lg" className="gap-4">
+            <Button size="lg" className="gap-4" ><Link href="/home">
               Get Started for free <MoveRight className="w-4 h-4" />
+              </Link>
             </Button>
           </div>
         </div>

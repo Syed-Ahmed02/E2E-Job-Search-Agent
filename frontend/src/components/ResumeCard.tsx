@@ -106,7 +106,7 @@ export function ResumeCard({ resume }: ResumeCardProps) {
             <Button 
               variant="outline" 
               size="sm" 
-              asChild
+              
               className="flex-1"
             >
               <Link href={resume.file_url} target="_blank">
@@ -122,7 +122,7 @@ export function ResumeCard({ resume }: ResumeCardProps) {
               <Button 
                 variant="ghost" 
                 size="sm" 
-                asChild
+              
                 className="w-full text-xs"
               >
                 <Link href={resume.profiles.linkedin_url} target="_blank">
